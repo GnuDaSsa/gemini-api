@@ -122,120 +122,9 @@ def main():
                             json_str = response_text.strip().replace("```json", "").replace("```", "").strip()
                             parsed_json = json.loads(json_str)
                             
-                            # Display extracted information in Korean
-                            st.subheader("📊 청구서에서 추출된 정보")
-                            
-                            # Create a Korean-labeled dictionary
-                            korean_labels = {
-                                "due_date_amount": "총 금액",
-                                "water_usage_m3": "총 사용량 (m³)",
-                                "lab1_tons": "제1연구소 사용량 (톤)",
-                                "lab2_tons": "제2연구소 사용량 (톤)",
-                                "service_period": "사용기간"
-                            }
-                            
-                            # Display in a more readable format
-                            for key, korean_label in korean_labels.items():
-                                value = parsed_json.get(key, "정보 없음")
-                                if value is None:
-                                    value = "정보 없음"
-                                st.write(f"**{korean_label}**: {value}")
-                            
-                            st.divider()
-                            
-                            # Also show original JSON in an expander
-                            with st.expander("원본 JSON 데이터 보기"):
-                                st.json(parsed_json)
-
-                            # --- Calculation Logic ---
-                            st.markdown("---")
-                            st.subheader("💰 연구소별 사용 요금 계산 결과")
-                            try:
-                                # Safely get values, defaulting to 0 if None or invalid
-                                due_date_amount = float(parsed_json.get("due_date_amount") or 0)
-                                water_usage_m3 = float(parsed_json.get("water_usage_m3") or 0)
-                                lab1_tons = float(parsed_json.get("lab1_tons") or 0)
-                                lab2_tons = float(parsed_json.get("lab2_tons") or 0)
-                                service_period = parsed_json.get("service_period", "날짜 정보 없음")
-
-                                if water_usage_m3 > 0:
-                                    price_per_unit = due_date_amount / water_usage_m3
-                                    lab1_fee = price_per_unit * lab1_tons
-                                    lab2_fee = price_per_unit * lab2_tons
-
-                                    # Truncate to the nearest 10 by using integer division
-                                    lab1_fee_truncated = (int(lab1_fee) // 10) * 10
-                                    lab2_fee_truncated = (int(lab2_fee) // 10) * 10
-
-                                    col1, col2 = st.columns(2)
-                                    
-                                    # Display Lab 1 fee with formula
-                                    with col1:
-                                        st.metric(label="1연구소 사용요금", value=f"{lab1_fee_truncated:,} 원")
-                                        st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab1_tons:,.0f}")
-                                    
-                                    # Display Lab 2 fee with formula
-                                    with col2:
-                                        st.metric(label="2연구소 사용요금", value=f"{lab2_fee_truncated:,} 원")
-                                        st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab2_tons:,.0f}")
-                                    
-                                    st.info(f"📅 사용기간: {service_period}")
-                                    
-                                    # --- ODT 문서 생성 섹션 ---
-                                    st.markdown("---")
-                                    st.subheader("📝 공문 서식 자동 작성")
-                                    
-                                    # 템플릿 파일 찾기
-                                    template_files = glob.glob("서식/*.odt")
-                                    
-                                    if template_files:
-                                        st.info("✅ 서식 템플릿이 준비되어 있습니다. 아래 버튼을 클릭하여 공문을 생성하세요.")
-                                        
-                                        if st.button("📄 공문 서식 생성", type="secondary", use_container_width=True):
-                                            with st.spinner("📝 공문 서식을 생성하는 중..."):
-                                                template_path = template_files[0]
-                                                
-                                                # 출력 파일명 생성
-                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                                output_filename = f"수도요금부과_{timestamp}.odt"
-                                                output_path = os.path.join("서식", output_filename)
-                                                
-                                                # ODT 파일 생성
-                                                result = generate_water_bill_document(
-                                                    template_path,
-                                                    output_path,
-                                                    parsed_json
-                                                )
-                                                
-                                                if result["success"]:
-                                                    st.success("✅ 공문 서식이 성공적으로 생성되었습니다!")
-                                                    
-                                                    # 치환된 내용 표시
-                                                    with st.expander("📋 문서에 작성된 내용 확인"):
-                                                        for key, value in result["replacements"].items():
-                                                            st.write(f"**{key}**: {value}")
-                                                    
-                                                    # 파일 다운로드 버튼
-                                                    with open(output_path, "rb") as file:
-                                                        st.download_button(
-                                                            label="💾 공문 서식 다운로드 (ODT)",
-                                                            data=file,
-                                                            file_name=output_filename,
-                                                            mime="application/vnd.oasis.opendocument.text",
-                                                            use_container_width=True
-                                                        )
-                                                else:
-                                                    st.error(f"❌ 문서 생성 중 오류가 발생했습니다: {result.get('error', '알 수 없는 오류')}")
-                                    else:
-                                        st.warning("⚠️ 서식 템플릿 파일을 찾을 수 없습니다. '서식' 폴더에 ODT 템플릿 파일을 추가해주세요.")
-
-                                else:
-                                    st.warning("⚠️ 상수도 사용량이 0이므로 요금을 계산할 수 없습니다.")
-
-                            except (ValueError, TypeError):
-                                st.error("❌ 계산에 필요한 숫자 데이터가 없거나 잘못되었습니다. 추출된 정보를 확인해주세요.")
-                            except Exception as e:
-                                st.error(f"❌ 계산 중 예상치 못한 오류가 발생했습니다: {e}")
+                            # Store in session state to prevent loss on rerun
+                            st.session_state.parsed_data = parsed_json
+                            st.rerun()  # Rerun to display results
 
 
                         except json.JSONDecodeError:
@@ -246,6 +135,123 @@ def main():
                             st.markdown(response_text)
                     else:
                         st.warning("⚠️ 분석에 실패했습니다. 청구서를 다시 확인해주세요.")
+            
+            # Display results if data exists in session state
+            if "parsed_data" in st.session_state and st.session_state.parsed_data:
+                parsed_json = st.session_state.parsed_data
+                
+                # Display extracted information in Korean
+                st.subheader("📊 청구서에서 추출된 정보")
+                
+                # Create a Korean-labeled dictionary
+                korean_labels = {
+                    "due_date_amount": "총 금액",
+                    "water_usage_m3": "총 사용량 (m³)",
+                    "lab1_tons": "제1연구소 사용량 (톤)",
+                    "lab2_tons": "제2연구소 사용량 (톤)",
+                    "service_period": "사용기간"
+                }
+                
+                # Display in a more readable format
+                for key, korean_label in korean_labels.items():
+                    value = parsed_json.get(key, "정보 없음")
+                    if value is None:
+                        value = "정보 없음"
+                    st.write(f"**{korean_label}**: {value}")
+                
+                st.divider()
+                
+                # Also show original JSON in an expander
+                with st.expander("원본 JSON 데이터 보기"):
+                    st.json(parsed_json)
+
+                # --- Calculation Logic ---
+                st.markdown("---")
+                st.subheader("💰 연구소별 사용 요금 계산 결과")
+                try:
+                    # Safely get values, defaulting to 0 if None or invalid
+                    due_date_amount = float(parsed_json.get("due_date_amount") or 0)
+                    water_usage_m3 = float(parsed_json.get("water_usage_m3") or 0)
+                    lab1_tons = float(parsed_json.get("lab1_tons") or 0)
+                    lab2_tons = float(parsed_json.get("lab2_tons") or 0)
+                    service_period = parsed_json.get("service_period", "날짜 정보 없음")
+
+                    if water_usage_m3 > 0:
+                        price_per_unit = due_date_amount / water_usage_m3
+                        lab1_fee = price_per_unit * lab1_tons
+                        lab2_fee = price_per_unit * lab2_tons
+
+                        # Truncate to the nearest 10 by using integer division
+                        lab1_fee_truncated = (int(lab1_fee) // 10) * 10
+                        lab2_fee_truncated = (int(lab2_fee) // 10) * 10
+
+                        col1, col2 = st.columns(2)
+                        
+                        # Display Lab 1 fee with formula
+                        with col1:
+                            st.metric(label="1연구소 사용요금", value=f"{lab1_fee_truncated:,} 원")
+                            st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab1_tons:,.0f}")
+                        
+                        # Display Lab 2 fee with formula
+                        with col2:
+                            st.metric(label="2연구소 사용요금", value=f"{lab2_fee_truncated:,} 원")
+                            st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab2_tons:,.0f}")
+                        
+                        st.info(f"📅 사용기간: {service_period}")
+                        
+                        # --- ODT 문서 생성 섹션 ---
+                        st.markdown("---")
+                        st.subheader("📝 공문 서식 자동 작성")
+                        
+                        # 템플릿 파일 찾기
+                        template_files = glob.glob("서식/*.odt")
+                        
+                        if template_files:
+                            st.info("✅ 서식 템플릿이 준비되어 있습니다. 아래 버튼을 클릭하여 공문을 생성하세요.")
+                            
+                            # 출력 파일명 생성
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            output_filename = f"수도요금부과_{timestamp}.odt"
+                            output_path = os.path.join("서식", output_filename)
+                            
+                            # ODT 파일 미리 생성
+                            template_path = template_files[0]
+                            result = generate_water_bill_document(
+                                template_path,
+                                output_path,
+                                parsed_json
+                            )
+                            
+                            if result["success"]:
+                                # 치환된 내용 표시
+                                with st.expander("📋 문서에 작성된 내용 확인"):
+                                    for key, value in result["replacements"].items():
+                                        st.write(f"**{key}**: {value}")
+                                
+                                # 파일 다운로드 버튼
+                                with open(output_path, "rb") as file:
+                                    st.download_button(
+                                        label="💾 공문 서식 다운로드 (ODT)",
+                                        data=file,
+                                        file_name=output_filename,
+                                        mime="application/vnd.oasis.opendocument.text",
+                                        use_container_width=True,
+                                        key="download_odt"
+                                    )
+                                st.success("✅ 공문 서식이 생성되었습니다. 위 버튼을 클릭하여 다운로드하세요!")
+                            else:
+                                st.error(f"❌ 문서 생성 중 오류가 발생했습니다: {result.get('error', '알 수 없는 오류')}")
+                        else:
+                            st.warning("⚠️ 서식 템플릿 파일을 찾을 수 없습니다. '서식' 폴더에 ODT 템플릿 파일을 추가해주세요.")
+
+                    else:
+                        st.warning("⚠️ 상수도 사용량이 0이므로 요금을 계산할 수 없습니다.")
+
+                except (ValueError, TypeError):
+                    st.error("❌ 계산에 필요한 숫자 데이터가 없거나 잘못되었습니다. 추출된 정보를 확인해주세요.")
+                except Exception as e:
+                    st.error(f"❌ 계산 중 예상치 못한 오류가 발생했습니다: {e}")
+        
         else:
             st.info("👆 왼쪽에서 수도 요금 청구서를 업로드하여 분석을 시작하세요.")
 
