@@ -4,6 +4,15 @@ from PIL import Image
 import os
 from pdf2image import convert_from_bytes
 import json
+from datetime import datetime
+import glob
+
+# Import ODT utilities
+from odt_utils import (
+    generate_water_bill_document,
+    format_number_with_comma,
+    number_to_korean
+)
 
 # --- Functions ---
 
@@ -171,6 +180,54 @@ def main():
                                         st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab2_tons:,.0f}")
                                     
                                     st.info(f"📅 사용기간: {service_period}")
+                                    
+                                    # --- ODT 문서 생성 섹션 ---
+                                    st.markdown("---")
+                                    st.subheader("📝 공문 서식 자동 작성")
+                                    
+                                    # 템플릿 파일 찾기
+                                    template_files = glob.glob("서식/*.odt")
+                                    
+                                    if template_files:
+                                        st.info("✅ 서식 템플릿이 준비되어 있습니다. 아래 버튼을 클릭하여 공문을 생성하세요.")
+                                        
+                                        if st.button("📄 공문 서식 생성", type="secondary", use_container_width=True):
+                                            with st.spinner("📝 공문 서식을 생성하는 중..."):
+                                                template_path = template_files[0]
+                                                
+                                                # 출력 파일명 생성
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                output_filename = f"수도요금부과_{timestamp}.odt"
+                                                output_path = os.path.join("서식", output_filename)
+                                                
+                                                # ODT 파일 생성
+                                                result = generate_water_bill_document(
+                                                    template_path,
+                                                    output_path,
+                                                    parsed_json
+                                                )
+                                                
+                                                if result["success"]:
+                                                    st.success("✅ 공문 서식이 성공적으로 생성되었습니다!")
+                                                    
+                                                    # 치환된 내용 표시
+                                                    with st.expander("📋 문서에 작성된 내용 확인"):
+                                                        for key, value in result["replacements"].items():
+                                                            st.write(f"**{key}**: {value}")
+                                                    
+                                                    # 파일 다운로드 버튼
+                                                    with open(output_path, "rb") as file:
+                                                        st.download_button(
+                                                            label="💾 공문 서식 다운로드 (ODT)",
+                                                            data=file,
+                                                            file_name=output_filename,
+                                                            mime="application/vnd.oasis.opendocument.text",
+                                                            use_container_width=True
+                                                        )
+                                                else:
+                                                    st.error(f"❌ 문서 생성 중 오류가 발생했습니다: {result.get('error', '알 수 없는 오류')}")
+                                    else:
+                                        st.warning("⚠️ 서식 템플릿 파일을 찾을 수 없습니다. '서식' 폴더에 ODT 템플릿 파일을 추가해주세요.")
 
                                 else:
                                     st.warning("⚠️ 상수도 사용량이 0이므로 요금을 계산할 수 없습니다.")

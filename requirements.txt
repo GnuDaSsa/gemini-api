@@ -3,3 +3,5 @@ google-generativeai
 Pillow
 pdf2image
 python-dotenv
+odfpy
+python-dateutil
