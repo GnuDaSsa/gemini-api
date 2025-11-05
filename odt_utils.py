@@ -143,7 +143,7 @@ def format_service_period(period_str):
 
 def replace_text_in_odt(template_path, output_path, replacements):
     """
-    ODT 파일의 텍스트를 치환
+    ODT 파일의 텍스트를 치환 (content.xml 직접 수정 방식)
     
     Args:
         template_path: 템플릿 ODT 파일 경로
@@ -151,44 +151,35 @@ def replace_text_in_odt(template_path, output_path, replacements):
         replacements: 치환할 텍스트 딕셔너리 {찾을_텍스트: 바꿀_텍스트}
     """
     try:
-        # ODT 파일 로드
-        doc = load(template_path)
+        # 임시 디렉토리 생성
+        import shutil
         
-        # 모든 텍스트 요소를 순회하며 치환
-        for element in doc.getElementsByType(text.P):
-            for node in element.childNodes:
-                if node.nodeType == 3:  # TEXT_NODE
-                    text_content = str(node.data)
-                    
-                    # 모든 치환 항목에 대해 처리
-                    for search, replace in replacements.items():
-                        if search in text_content:
-                            text_content = text_content.replace(search, str(replace))
-                    
-                    node.data = text_content
+        # ODT 파일은 ZIP 파일이므로 직접 수정
+        with zipfile.ZipFile(template_path, 'r') as zip_ref:
+            # content.xml 읽기
+            content_xml = zip_ref.read('content.xml').decode('utf-8')
+            
+            # 모든 치환 수행
+            for search, replace in replacements.items():
+                content_xml = content_xml.replace(search, str(replace))
+            
+            # 새 ODT 파일 생성
+            with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zip_out:
+                # 모든 파일을 새 ZIP에 복사
+                for item in zip_ref.namelist():
+                    if item == 'content.xml':
+                        # 수정된 content.xml 추가
+                        zip_out.writestr(item, content_xml.encode('utf-8'))
+                    else:
+                        # 나머지 파일은 그대로 복사
+                        zip_out.writestr(item, zip_ref.read(item))
         
-        # 표(table) 안의 텍스트도 처리
-        from odf.table import Table, TableRow, TableCell
-        for table in doc.getElementsByType(Table):
-            for row in table.getElementsByType(TableRow):
-                for cell in row.getElementsByType(TableCell):
-                    for element in cell.getElementsByType(text.P):
-                        for node in element.childNodes:
-                            if node.nodeType == 3:  # TEXT_NODE
-                                text_content = str(node.data)
-                                
-                                for search, replace in replacements.items():
-                                    if search in text_content:
-                                        text_content = text_content.replace(search, str(replace))
-                                
-                                node.data = text_content
-        
-        # 저장
-        doc.save(output_path)
         return True
         
     except Exception as e:
         print(f"Error processing ODT file: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
