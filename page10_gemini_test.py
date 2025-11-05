@@ -97,8 +97,31 @@ def main():
                             # The model might return the JSON wrapped in ```json ... ```
                             json_str = response_text.strip().replace("```json", "").replace("```", "").strip()
                             parsed_json = json.loads(json_str)
+                            
+                            # Display extracted information in Korean
                             st.subheader("추출된 정보:")
-                            st.json(parsed_json)
+                            
+                            # Create a Korean-labeled dictionary
+                            korean_labels = {
+                                "due_date_amount": "총 금액",
+                                "water_usage_m3": "총 사용량 (m³)",
+                                "lab1_tons": "제1연구소 사용량 (톤)",
+                                "lab2_tons": "제2연구소 사용량 (톤)",
+                                "service_period": "사용기간"
+                            }
+                            
+                            # Display in a more readable format
+                            for key, korean_label in korean_labels.items():
+                                value = parsed_json.get(key, "정보 없음")
+                                if value is None:
+                                    value = "정보 없음"
+                                st.write(f"**{korean_label}**: {value}")
+                            
+                            st.divider()
+                            
+                            # Also show original JSON in an expander
+                            with st.expander("원본 JSON 데이터 보기"):
+                                st.json(parsed_json)
 
                             # --- Calculation Logic ---
                             st.subheader("🔬 연구소별 예상 요금:")
@@ -120,9 +143,18 @@ def main():
                                     lab2_fee_truncated = (int(lab2_fee) // 10) * 10
 
                                     col1, col2 = st.columns(2)
-                                    col1.metric(label="1연구소 사용요금", value=f"{lab1_fee_truncated:,} 원")
-                                    col2.metric(label="2연구소 사용요금", value=f"{lab2_fee_truncated:,} 원")
-                                    st.info(f"사용기간: {service_period}")
+                                    
+                                    # Display Lab 1 fee with formula
+                                    with col1:
+                                        st.metric(label="1연구소 사용요금", value=f"{lab1_fee_truncated:,} 원")
+                                        st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab1_tons:,.0f}")
+                                    
+                                    # Display Lab 2 fee with formula
+                                    with col2:
+                                        st.metric(label="2연구소 사용요금", value=f"{lab2_fee_truncated:,} 원")
+                                        st.caption(f"({due_date_amount:,.0f} / {water_usage_m3:,.0f}) × {lab2_tons:,.0f}")
+                                    
+                                    st.info(f"📅 사용기간: {service_period}")
 
                                 else:
                                     st.warning("상수도 사용량이 0이므로 요금을 계산할 수 없습니다.")
