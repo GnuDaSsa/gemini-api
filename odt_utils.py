@@ -130,14 +130,20 @@ def get_next_month_last_day(period_str):
 def format_service_period(period_str):
     """
     사용기간을 지정된 형식으로 변환
-    예: "2025.06.23~2025.07.22" -> "2025. 6. 23. ~ 2025. 7. 22."
+    년도는 처음에만 표시
+    예: "2025.06.23~2025.07.22" -> "2025. 6. 23. ~ 7. 22."
     """
     start_date, end_date = parse_service_period(period_str)
     if not start_date or not end_date:
         return period_str
     
-    # 형식: "YYYY. M. D. ~ YYYY. M. D."
-    formatted = f"{start_date.year}. {start_date.month}. {start_date.day}. ~ {end_date.year}. {end_date.month}. {end_date.day}."
+    # 같은 해인 경우 년도는 처음에만 표시
+    if start_date.year == end_date.year:
+        formatted = f"{start_date.year}. {start_date.month}. {start_date.day}. ~ {end_date.month}. {end_date.day}."
+    else:
+        # 다른 해인 경우 둘 다 표시
+        formatted = f"{start_date.year}. {start_date.month}. {start_date.day}. ~ {end_date.year}. {end_date.month}. {end_date.day}."
+    
     return formatted
 
 
@@ -213,8 +219,8 @@ def generate_water_bill_document(template_path, output_path, extracted_data):
         next_month_last_day = get_next_month_last_day(service_period)
         formatted_period = format_service_period(service_period)
         
-        # 한글 금액
-        amount_korean = number_to_korean(charged_amount_truncated) + "원"
+        # 한글 금액 ("원" 제외)
+        amount_korean = number_to_korean(charged_amount_truncated)
         
         # 치환할 내용 준비
         replacements = {
