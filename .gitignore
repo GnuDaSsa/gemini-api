@@ -1,2 +1,5 @@
 .env
 gemini.env
+__pycache__/
+*.pyc
+서식/수도요금부과_*.odt
